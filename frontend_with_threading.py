@@ -3,7 +3,9 @@ from chatbot_backend import chatbot_workflow
 from langchain_core.messages import HumanMessage
 import uuid
 
-# ******************************************** Session Setup *****************************************
+# ******************************************** Utility Functions *****************************************
+
+# Functions to generate thread IDs, reset chat, add new threads, and load conversations based on thread ID.
 
 def generate_thread_id():
     return str(uuid.uuid4())
@@ -11,12 +13,18 @@ def generate_thread_id():
 def reset_chat():
     thread_id = generate_thread_id()
     st.session_state["thread_id"] = thread_id
-    add_thread(st.session_state["thread_id"])
+    add_thread(st.session_state["thread_id"], title="New Conversation")
     st.session_state["message_history"] = []
 
-def add_thread(thread_id):
-    if thread_id not in st.session_state['chat_threads']:
-        st.session_state['chat_threads'].append(thread_id)
+def add_thread(thread_id, title):
+
+    id_exists = any(chat["id"] == thread_id for chat in st.session_state['chat_threads'])
+    
+    if not id_exists:
+        st.session_state['chat_threads'].append({
+            "id": thread_id,
+            "title": title
+        })
 
 def load_conversation(thread_id):
     return chatbot_workflow.get_state(config = {'configurable' : {'thread_id' : thread_id}}).values['conversation_history']
@@ -33,9 +41,9 @@ if "thread_id" not in st.session_state:
 if 'chat_threads' not in st.session_state:
     st.session_state['chat_threads'] = []
 
-add_thread(st.session_state["thread_id"])
+add_thread(st.session_state["thread_id"], title="New Conversation")
 
-# ******************************************** Main UI *****************************************
+# ******************************************** Sidebar UI *****************************************
 
 st.sidebar.title("LangGraph Chatbot")
 
@@ -45,10 +53,10 @@ if st.sidebar.button("New Chat"):
 
 st.sidebar.header("My Chats")
 
-for thread_id in st.session_state['chat_threads']:
-    if st.sidebar.button(thread_id):
-        st.session_state["thread_id"] = thread_id
-        messages = load_conversation(thread_id)
+for chat in st.session_state['chat_threads']:
+    if st.sidebar.button(chat["title"], key=chat["id"]):
+        st.session_state["thread_id"] = chat["id"]
+        messages = load_conversation(chat["id"])
 
         temp_messages = []
         for msg in messages:
@@ -66,14 +74,22 @@ for message in st.session_state["message_history"]:
     with st.chat_message(message["role"]):
         st.text(message["content"])
 
-user_input = st.chat_input("Type Here...")
 
+user_input = st.chat_input("Type Here...")
 
 if user_input:
 
     st.session_state["message_history"].append({"role": "user", "content": user_input})
     with st.chat_message("user"):
         st.text(user_input)
+
+    should_rerun = False
+    
+    for chat in st.session_state['chat_threads']:
+        if chat["id"] == st.session_state["thread_id"] and chat["title"] == "New Conversation":
+            chat["title"] = user_input[:20] + "..."
+            should_rerun = True
+    
     
     CONFIG = {'configurable' : {'thread_id' : st.session_state["thread_id"]}}
     
@@ -87,3 +103,6 @@ if user_input:
         )
     
     st.session_state["message_history"].append({"role": "assistant", "content": ai_message})
+
+    if should_rerun:
+        st.rerun()
