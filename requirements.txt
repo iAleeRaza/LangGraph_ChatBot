@@ -3,3 +3,4 @@ langchain_groq
 langgraph
 streamlit
 dotenv
+langgraph-checkpoint-sqlite

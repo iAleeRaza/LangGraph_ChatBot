@@ -1,3 +1,4 @@
 .env
 cb_venv/
 __pycache__/
+chatbot.db
